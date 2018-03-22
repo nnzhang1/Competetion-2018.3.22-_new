@@ -1,0 +1,118 @@
+import numpy as np
+import pandas as pd
+from sklearn import tree
+from sklearn import cross_validation,metrics
+
+#with open('Data/round1_ijcai_18_train_20180301.new.txt', 'w') as fp:
+#    for line in open('Data/round1_ijcai_18_train_20180301.txt'):
+#        fp.write(line.strip().strip(',')+"\n")
+#with open('Data/round1_ijcai_18_train_20180301.txt') as file_object:  
+#    lines = file_object.readlines().strip().split()
+#file = pd.read_excel('Data/round1_ijcai_18_train_20180301.xlsx')
+################################################################################
+#打开文件，存储为dataframe
+f = open("Data/round1_ijcai_18_train_20180301.txt", 'r')
+data = f.read()
+rows = data.split('\n')
+full_data = []
+for row in rows:
+    split_row = row.split(" ")
+    full_data.append(split_row)
+a=pd.DataFrame(full_data[1:],columns=full_data[0])
+##############################################################################
+#查看是否有空值，因为只有最后一列有空值，所以删除最后一列
+a.isnull()#元素级别的判断，是否有空值
+a.isnull().any()#列级别的判断，只要列中有空值就为True
+missing=a.columns[a.isnull().any()].tolist()##将为空或者NA的列找出来
+a[missing].isnull().sum()#将列中为空或者NA的个数统计出来
+a=a.drop(a['instance_id'].size-1)
+###############################################################################
+#因为有的列中的值是以分号隔开的数字，所以要对这样的列进行预处理
+
+
+###############################################################################
+#首先用决策树模型尝试一下分类
+#,'item_category_list','item_property_list' 
+clf = tree.DecisionTreeClassifier()
+X = a[['item_brand_id','item_city_id','item_price_level','item_sales_level',
+       'item_collected_level','item_pv_level','user_gender_id','user_age_level','user_occupation_id','user_star_level',
+       'shop_id','shop_review_num_level','shop_review_positive_rate','shop_star_level','shop_score_service','shop_score_delivery',
+       'shop_score_description']]
+Y = a['is_trade']
+X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, Y, test_size=0.4, random_state=0)
+clf = clf.fit(X_train,y_train)
+b = clf.feature_importances_
+#print(b)
+#import pydotplus 
+#dot_data = tree.export_graphviz(clf, out_file=None) 
+#graph = pydotplus.graph_from_dot_data(dot_data) 
+#graph.write_pdf("iris.pdf")
+y_pred=clf.predict(X_test).tolist()
+y_pred=pd.Series(y_pred)
+t=metrics.log_loss(y_test,y_pred)#1.25
+cha=0
+for i in range(len(y_pred)):
+    if y_pred[i]!=y_test.iloc[i]:
+        cha+=1
+error_rate=cha/len(y_pred)*100#单位：百分比 3.62%
+##############################################################################
+#随机森林
+from sklearn.ensemble import RandomForestClassifier
+cf=RandomForestClassifier()
+cf=cf.fit(X_train,y_train)
+y_pre=cf.predict(X_test)
+y_pre=cf.predict(X_test).tolist()
+y_pre=pd.Series(y_pre)
+tt=metrics.log_loss(y_test,y_pre)#0.81
+ch=0
+for i in range(len(y_pre)):
+    if y_pre[i]!=y_test.iloc[i]:
+        ch+=1
+er_rate=ch/len(y_pre)*100#2.37%
+####################################################################################
+#GBDT
+from sklearn.ensemble import GradientBoostingClassifier
+cff=GradientBoostingClassifier()
+cff=cff.fit(X_train,y_train)
+y_pr=cff.predict(X_test).tolist()
+y_pr=pd.Series(y_pr)
+ttt=metrics.log_loss(y_test,y_pr)#0.6530
+c=0
+for i in range(len(y_pr)):
+    if y_pr[i]!=y_test.iloc[i]:
+        c+=1
+e_rate=c/len(y_pr)*100#1.89%
+ttt=metrics.log_loss(y_pr,y_test)
+#################################################################################
+#Adaboost
+from sklearn.ensemble import AdaBoostClassifier
+cfff=AdaBoostClassifier()
+cfff=cfff.fit(X_train,y_train)
+yy_pre=cfff.predict(X_test).tolist()
+yy_pre=pd.Series(yy_pre)
+tttt=metrics.log_loss(y_test,yy_pre)#0.6521
+#################################################################################
+#
+ff = open("Data/round1_ijcai_18_test_a_20180301.txt", 'r')
+da = ff.read()
+rws = da.split('\n')
+fu_data = []
+for rw in rws:
+    split_row = rw.split(" ")
+    fu_data.append(split_row)
+b=pd.DataFrame(fu_data[1:],columns=fu_data[0])
+b=b.drop(b['instance_id'].size-1)
+XX= b[['item_brand_id','item_city_id','item_price_level','item_sales_level',
+       'item_collected_level','item_pv_level','user_gender_id','user_age_level','user_occupation_id','user_star_level',
+       'shop_id','shop_review_num_level','shop_review_positive_rate','shop_star_level','shop_score_service','shop_score_delivery',
+       'shop_score_description']]
+pre=cff.predict(XX).tolist()
+pr=cff.predict_proba(XX)
+bb=pr[:,-1]
+bb=pd.DataFrame(bb)
+bb.columns=['predicted_score']
+i=b['instance_id']
+i=pd.DataFrame(i)
+i.columns=['instance_id']
+pr=pd.concat([i,bb],axis=1)
+pr.to_csv('result.txt',sep=' ',index=False)
